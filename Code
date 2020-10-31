@@ -1,44 +1,53 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.0;
 
+contract ReportIncident{
 
+   address pharmacy = 0x001d3f1ef827552ae1114027bd3ecf1f086ba0f9;
+   address healthministry=0x4b0897b0513fdc7c541b6d9d7e929c4e5364d2dc;
+   address FDA = 0xca35b7d915458ef540ade6068dfe2f44e8fa733c;
+   
+// variables needed from patients to report an incident
+       uint PatientID;
+       uint Age; 
+       string CareVisitReason;
+       string ExperienceDescription; 
+       string CareSetting;
+       string MedicalHistory; 
+       string ContactInformation; 
+       
+       
+// variables needed from doctors to report an incident
+       uint DoctorID;
+       string IncidentDescription;
+       uint256 IncidentDate;
+       uint IncidentCategory;
+       string staffgroup;
+       string emailaddress;
+       uint HarmDegree;
 
-contract IRS_SC{
-
-
-
-    address public NationalHealthOrg;
-
-
-    modifier onlyNationalHealthOrg() {
-        require(msg.sender == NationalHealthOrg);
+    modifier onlyhealthministry() {
+        require(msg.sender == healthministry);
         _;
     }
-
-
-
+    
     function IRS_SC() public {
-        NationalHealthOrg = msg.sender;
+        healthministry = msg.sender;
     }
-
-
-    //       National Health Organization Structure Smart Contract            //
-
+    
+  
+   //       National Health Organization Structure Smart Contract            //
 
     mapping (address => bool) Hospital;
 
-    function Authorize_Hospital(address _HospitalAddress) onlyNationalHealthOrg public {
+     function Authorize_Hospital(address _HospitalAddress) onlyhealthministry public {
         Hospital[_HospitalAddress] = true;
-    }
-
-    function Unthorize_Hospital(address _HospitalAddress) onlyNationalHealthOrg public {
-        Hospital[_HospitalAddress] = false;
     }
 
     function Get_Authorize_Hospital(address _HospitalAddress) view public returns (bool) {
         return (Hospital[_HospitalAddress]);
     }
     
-    //******************************************************//
+    //**********************Reporting Process********************************//
     
     modifier onlyHospital() {
         require(Hospital[msg.sender] == true);
@@ -56,10 +65,6 @@ contract IRS_SC{
     function Add_Doctor(address _DoctorAddress) onlyHospital public {
         doctors[_DoctorAddress].Valid = true;
     }
-
-    function Remove_Doctor(address _DoctorAddress) onlyHospital public {
-        doctors[_DoctorAddress].Valid = false;
-    }
     
     struct Patient{
         bool Valid;
@@ -67,107 +72,123 @@ contract IRS_SC{
         mapping (uint=>string) IPFS_Data_Record;
         address Doctor;
         mapping (address=>bool) Doctor_Valid;
-        string IPFS_Treatment;
+        string IPFS_IncidentDetails;
     }
-    
     mapping (address => Patient) patients;
     
     function Add_Patient(address _PatientAddress) onlyHospital public {
         patients[_PatientAddress].Valid = true;
     }
+    
+ //********************Incident is added by the patient*************************************//
 
-    function Remove_Hospital(address _PatientAddress) onlyHospital public {
-        patients[_PatientAddress].Valid = false;
-    }
-    
-    function Authorize_Doctor_For_Patient(address _DoctorAddress,address _PatientAddress) onlyHospital public{
-        patients[_PatientAddress].Doctor = _DoctorAddress;
-        patients[_PatientAddress].Doctor_Valid[_DoctorAddress] = true;
-        doctors[_DoctorAddress].Patient[doctors[_DoctorAddress].index + 1] = _PatientAddress;
-        doctors[_DoctorAddress].index = doctors[_DoctorAddress].index +1;
-    }
-    
-    function UnAuthorize_Doctor_For_Patient(address _DoctorAddress,address _PatientAddress) onlyHospital public{
-        patients[_PatientAddress].Doctor_Valid[_DoctorAddress] = false;
-    }
-    
-    function Check_Authorization_For_Patient(address _PatientAddress) view public returns (address) {
-        return (patients[_PatientAddress].Doctor);
-    }
-    
-    function Check_Authorization_For_Doctor(address _DoctorAddress) view public returns (uint) {
-        return (doctors[_DoctorAddress].index);
-    }
-    
-    function Get_Authorization_For_Doctor(address _DoctorAddress, uint _index) view public returns (address) {
-        return (doctors[_DoctorAddress].Patient[_index]);
-    }
-    
-    function Check_Doctor(address _DoctorAddress) view public returns (bool) {
-        return (doctors[_DoctorAddress].Valid);
-    }
-    
-    function Check_Patient(address _PatientAddress) view public returns (bool) {
+    function Check_Patient(address _PatientAddress) view public returns (bool) { 
         return (patients[_PatientAddress].Valid);
     }
-    
-
-    //******************************************************//
-
-    event Requested(address _address);
-    event Commented(address _address,string _IPFS);
-    
-    modifier onlyDoctor(address _PatientAddress) {
-        require(patients[_PatientAddress].Doctor_Valid[msg.sender] == true);
-        _;
+    event IncidentAddedbyPatient(string);
+    function addIncidentPatient  (uint PatientID, uint Age, string CareVisitReason, 
+                                  string ExperienceDescription, string CareSetting,
+                                  string MedicalHistory, string ContactInformation) onlyPatient{
+        emit IncidentAddedbyPatient("Incident Added by Patient"); 
     }
-    
-    function Request_WriteHR(address _PatientAddress) onlyDoctor(_PatientAddress) public{
-        Requested(_PatientAddress);
+
+ //*******************Incident is added by the doctor*************************************//
+ 
+    event IncidentAddedbyDoctor(string);
+    function addIncidentDoctor (uint DoctorID, string IncidentDescription, 
+                                uint256 IncidentDate, uint IncidentCategory, 
+                                string staffgroup, string emailaddress, uint HarmDegree) onlyDoctor{
+        emit IncidentAddedbyDoctor("Incident Added by healthcare practitioner"); 
     }
+
+   //*****************Upload Incident details to IPFS*************************************//
     
-    function Write_Treatment(address _PatientAddress, string _IPFS) onlyDoctor(_PatientAddress) public{
-        patients[_PatientAddress].IPFS_Treatment = _IPFS;
-        Commented(_PatientAddress,_IPFS);
+    event NewIncidentReported(address _address,string _IPFS);
+
+    function IncidenTAddedtoIPFS(address _PatientAddress, string _IPFS) onlyDoctor public{
+        patients[_PatientAddress].IPFS_IncidentDetails = _IPFS;
+        NewIncidentReported(_PatientAddress,_IPFS);
         
     }
+ 
+   //*****************Get Incident details from IPFS*************************************// 
     
-    function Get_Treatment(address _PatientAddress) view public returns (string) {
-        return (patients[_PatientAddress].IPFS_Treatment);
+    function Get_IncidentDetails(address _PatientAddress) view public returns (string) {
+        return (patients[_PatientAddress].IPFS_IncidentDetails);
         
     }
+ 
+    //*****************Send Update to Pharmacies****************************************// 
     
-    //******************************************************//
+    event ReviewMedication();
+    event WithdrawMedication ();
+    event CheckMinistryPlan();
+       function MedicationReview() onlypharmacy{ 
+           if (IncidentCategory == 10){ // 10 is the code number of medication errors
+               emit ReviewMedication();
+               if (HarmDegree==1)  // 1 for serious incidents (SI)
+               emit WithdrawMedication ();
+            else 
+               emit CheckMinistryPlan();
+       }
+   }
     
-    function Get_HRData(address _PatientAddress,uint _index) view public returns (string) {
-        return (patients[_PatientAddress].IPFS_Data_Record[_index]);
+    //*****************Send Update to FDA****************************************// 
+    event ReviewIncident ();
+    event ContactManufacturers(); 
+    event FDAActioPlan();
+          function FDAReview() onlyFDA {
+            if (HarmDegree==1) {
+              emit ContactManufacturers();
+              emit FDAActioPlan();
+            }
+            else {
+              emit ReviewIncident();
+            }
+            
     }
     
-    function Get_HRIndex(address _PatientAddress) view public returns (uint) {
-        return (patients[_PatientAddress].index);
+   //**************Send Update to Ministry of Health *************************// 
+    event ReviewIncidentMinistry();
+    event MinistryActionPlan();
+          function MinistryReview() onlyhealthministry {
+            if (HarmDegree==1) {
+              emit MinistryActionPlan ();
+            }
+            else { 
+                emit ReviewIncidentMinistry();
     }
+          }
+          
+    //**********************************************************************************//   
+    
+    mapping (address => uint) balances;
+    
+    event ReporterRewarded(address from, address to, uint amount);
 
-    //******************************************************//
+    // Receiver can be the address of either the healthcare practitioner or patient //
     
+    function RewardReporter(address receiver, uint amount) onlyhealthministry { 
+        balances[receiver] += amount;
+        emit ReporterRewarded(msg.sender, receiver, amount);
+    }
+    
+    //**********************************************************************************//   
     modifier onlyPatient() {
         require(patients[msg.sender].Valid == true);
         _;
     }
-    
-    modifier onlyAuthorizeDoctor(address _DoctorAddress) {
-        require(patients[msg.sender].Doctor_Valid[_DoctorAddress] == true);
+    modifier onlyDoctor() {
+        require(doctors[msg.sender].Valid == true);
         _;
     }
-    
-    event Alerted(address _DoctorAddress, address _PatientAddress);
-     
-    function Alert(address _DoctorAddress) onlyAuthorizeDoctor(_DoctorAddress) public{
-        Alerted(_DoctorAddress,msg.sender);
+    modifier onlyFDA() {
+        if (msg.sender == FDA)
+        _;
     }
-    
-    function Write_HRData(string _IPFS) onlyPatient public{
-        patients[msg.sender].IPFS_Data_Record[patients[msg.sender].index+1] = _IPFS;
-        patients[msg.sender].index = patients[msg.sender].index+1;
+
+    modifier onlypharmacy() {                    
+        if (msg.sender == pharmacy)
+        _;
     }
- 
 }
